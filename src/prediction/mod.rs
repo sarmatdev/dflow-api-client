@@ -500,4 +500,279 @@ impl DflowPredictionApiClient {
         ))
         .await
     }
+
+    // =========================================================================
+    // Orderbook API Endpoints
+    // =========================================================================
+
+    /// Get orderbook data for a market by its ticker.
+    ///
+    /// # Arguments
+    ///
+    /// * `market_ticker` - Market ticker ID
+    ///
+    /// # Returns
+    ///
+    /// Orderbook data for the market.
+    pub async fn get_orderbook(
+        &self,
+        market_ticker: &str,
+    ) -> Result<Orderbook> {
+        self.get(&format!("/api/v1/orderbook/{}", market_ticker))
+            .await
+    }
+
+    /// Get orderbook data for a market by mint address.
+    ///
+    /// # Arguments
+    ///
+    /// * `mint` - Mint address (yes or no outcome mint)
+    ///
+    /// # Returns
+    ///
+    /// Orderbook data for the market associated with the mint.
+    pub async fn get_orderbook_by_mint(&self, mint: &str) -> Result<Orderbook> {
+        self.get(&format!("/api/v1/orderbook/by-mint/{}", mint))
+            .await
+    }
+
+    // =========================================================================
+    // Trades API Endpoints
+    // =========================================================================
+
+    /// Get a paginated list of trades.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Query parameters for filtering and pagination
+    ///
+    /// # Returns
+    ///
+    /// A paginated list of trades.
+    pub async fn get_trades(
+        &self,
+        params: Option<GetTradesParams>,
+    ) -> Result<TradesResponse> {
+        let params = params.unwrap_or_default();
+
+        let query = self.build_query_string(&[
+            ("limit", params.limit.map(|v| v.to_string())),
+            ("cursor", params.cursor),
+            ("ticker", params.ticker),
+            ("minTs", params.min_ts.map(|v| v.to_string())),
+            ("maxTs", params.max_ts.map(|v| v.to_string())),
+        ]);
+
+        self.get(&format!("/api/v1/trades{}", query)).await
+    }
+
+    /// Get trades for a market by mint address.
+    ///
+    /// # Arguments
+    ///
+    /// * `mint` - Mint address (yes or no outcome mint)
+    /// * `params` - Query parameters for filtering and pagination
+    ///
+    /// # Returns
+    ///
+    /// A list of trades for the market associated with the mint.
+    pub async fn get_trades_by_mint(
+        &self,
+        mint: &str,
+        params: Option<GetTradesParams>,
+    ) -> Result<TradesResponse> {
+        let params = params.unwrap_or_default();
+
+        let query = self.build_query_string(&[
+            ("limit", params.limit.map(|v| v.to_string())),
+            ("cursor", params.cursor),
+            ("minTs", params.min_ts.map(|v| v.to_string())),
+            ("maxTs", params.max_ts.map(|v| v.to_string())),
+        ]);
+
+        self.get(&format!("/api/v1/trades/by-mint/{}{}", mint, query))
+            .await
+    }
+
+    // =========================================================================
+    // Live Data API Endpoints
+    // =========================================================================
+
+    /// Get live data for specified milestones.
+    ///
+    /// Relays live data from the Kalshi API for one or more milestones.
+    ///
+    /// # Arguments
+    ///
+    /// * `milestone_ids` - Array of milestone IDs (max 100)
+    ///
+    /// # Returns
+    ///
+    /// Live data for the requested milestones.
+    pub async fn get_live_data(
+        &self,
+        milestone_ids: &[String],
+    ) -> Result<LiveDataResponse> {
+        let ids_param = milestone_ids.join(",");
+        let query =
+            self.build_query_string(&[("milestoneIds", Some(ids_param))]);
+
+        self.get(&format!("/api/v1/live_data{}", query)).await
+    }
+
+    /// Get live data for an event by its ticker.
+    ///
+    /// # Arguments
+    ///
+    /// * `event_ticker` - Event ticker ID
+    ///
+    /// # Returns
+    ///
+    /// Live data for the event.
+    pub async fn get_live_data_by_event(
+        &self,
+        event_ticker: &str,
+    ) -> Result<LiveDataResponse> {
+        self.get(&format!("/api/v1/live_data/by-event/{}", event_ticker))
+            .await
+    }
+
+    /// Get live data for a market by mint address.
+    ///
+    /// # Arguments
+    ///
+    /// * `mint` - Mint address (yes or no outcome mint)
+    ///
+    /// # Returns
+    ///
+    /// Live data for the market associated with the mint.
+    pub async fn get_live_data_by_mint(
+        &self,
+        mint: &str,
+    ) -> Result<LiveDataResponse> {
+        self.get(&format!("/api/v1/live_data/by-mint/{}", mint))
+            .await
+    }
+
+    // =========================================================================
+    // Series API Endpoints
+    // =========================================================================
+
+    /// Get all series templates.
+    ///
+    /// Returns all series templates available. A series represents a template for recurring events.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Query parameters for filtering
+    ///
+    /// # Returns
+    ///
+    /// List of series.
+    pub async fn get_series(
+        &self,
+        params: Option<GetSeriesParams>,
+    ) -> Result<SeriesResponse> {
+        let params = params.unwrap_or_default();
+
+        let query = self.build_query_string(&[
+            ("category", params.category),
+            ("tags", params.tags),
+            (
+                "isInitialized",
+                params.is_initialized.map(|v| v.to_string()),
+            ),
+            ("status", params.status.map(|v| v.as_str().to_string())),
+        ]);
+
+        self.get(&format!("/api/v1/series{}", query)).await
+    }
+
+    /// Get a single series by its ticker.
+    ///
+    /// # Arguments
+    ///
+    /// * `series_ticker` - Series ticker ID
+    ///
+    /// # Returns
+    ///
+    /// The series with the given ticker ID.
+    pub async fn get_series_by_ticker(
+        &self,
+        series_ticker: &str,
+    ) -> Result<Series> {
+        self.get(&format!("/api/v1/series/{}", series_ticker)).await
+    }
+
+    // =========================================================================
+    // Tags API Endpoints
+    // =========================================================================
+
+    /// Get tags organized by series categories.
+    ///
+    /// Returns a mapping of series categories to their associated tags.
+    ///
+    /// # Returns
+    ///
+    /// Tags grouped by categories.
+    pub async fn get_tags_by_categories(
+        &self,
+    ) -> Result<TagsByCategoriesResponse> {
+        self.get("/api/v1/tags_by_categories").await
+    }
+
+    // =========================================================================
+    // Sports API Endpoints
+    // =========================================================================
+
+    /// Get filtering options available for each sport.
+    ///
+    /// Returns filtering options including scopes and competitions for each sport.
+    ///
+    /// # Returns
+    ///
+    /// Filters organized by sport.
+    pub async fn get_filters_by_sports(
+        &self,
+    ) -> Result<FiltersBySportsResponse> {
+        self.get("/api/v1/filters_by_sports").await
+    }
+
+    // =========================================================================
+    // Search API Endpoints
+    // =========================================================================
+
+    /// Search for events by title or ticker.
+    ///
+    /// Returns events with nested markets which match the search query.
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - Search parameters including query string
+    ///
+    /// # Returns
+    ///
+    /// Matching events with optional nested markets.
+    pub async fn search_events(
+        &self,
+        params: SearchParams,
+    ) -> Result<SearchResponse> {
+        let query = self.build_query_string(&[
+            ("q", Some(params.q)),
+            ("sort", params.sort.map(|v| v.as_str().to_string())),
+            ("order", params.order.map(|v| v.as_str().to_string())),
+            ("limit", params.limit.map(|v| v.to_string())),
+            ("cursor", params.cursor.map(|v| v.to_string())),
+            (
+                "withNestedMarkets",
+                params.with_nested_markets.map(|v| v.to_string()),
+            ),
+            (
+                "withMarketAccounts",
+                params.with_market_accounts.map(|v| v.to_string()),
+            ),
+        ]);
+
+        self.get(&format!("/api/v1/search{}", query)).await
+    }
 }

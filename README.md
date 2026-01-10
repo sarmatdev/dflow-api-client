@@ -60,6 +60,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - `get_market_candlesticks` - Get market candlestick data
 - `get_market_candlesticks_by_mint` - Get candlesticks by mint
 
+### Orderbook API
+
+- `get_orderbook` - Get orderbook data for a market by ticker
+- `get_orderbook_by_mint` - Get orderbook data by mint address
+
+### Trades API
+
+- `get_trades` - Get paginated list of trades with filtering options
+- `get_trades_by_mint` - Get trades for a market by mint address
+
+### Live Data API
+
+- `get_live_data` - Get live data for specified milestones
+- `get_live_data_by_event` - Get live data by event ticker
+- `get_live_data_by_mint` - Get live data by mint address
+
+### Series API
+
+- `get_series` - Get all series templates with filtering options
+- `get_series_by_ticker` - Get a single series by ticker
+
+### Tags API
+
+- `get_tags_by_categories` - Get tags organized by series categories
+
+### Sports API
+
+- `get_filters_by_sports` - Get filtering options for each sport
+
+### Search API
+
+- `search_events` - Search for events by title or ticker
+
 ## Configuration
 
 ```rust
