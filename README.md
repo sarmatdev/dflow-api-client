@@ -2,6 +2,12 @@
 
 A Rust client library for interacting with the [DFlow API](https://pond.dflow.net/introduction).
 
+## Features
+
+- **REST API** - Full coverage of the DFlow Prediction Market Metadata API
+- **WebSocket** - Real-time streaming of prices, trades, and orderbook updates (optional feature)
+- **Swap API** - Token swap functionality via imperative or declarative flows
+
 ## Installation
 
 Add to your `Cargo.toml`:
@@ -12,7 +18,18 @@ dflow-api-client = { git = "https://github.com/sarmatdev/dflow-api-client" }
 tokio = { version = "1", features = ["full"] }
 ```
 
+### With WebSocket Support
+
+```toml
+[dependencies]
+dflow-api-client = { git = "https://github.com/sarmatdev/dflow-api-client", features = ["websocket"] }
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+```
+
 ## Usage
+
+### REST API
 
 ```rust
 use dflow_api_client::prediction::{DflowPredictionApiClient, GetEventsParams, MarketStatus};
@@ -37,6 +54,64 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+```
+
+### WebSocket API
+
+Stream real-time market data using the WebSocket client:
+
+```rust
+use dflow_api_client::prediction::websocket::DflowPredictionWsClient;
+use futures_util::StreamExt;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Connect to WebSocket
+    let client = DflowPredictionWsClient::connect().await?;
+
+    // Subscribe to all price updates
+    let (mut stream, unsubscribe) = client.prices_subscribe_all().await?;
+
+    // Process incoming updates
+    while let Some(update) = stream.next().await {
+        println!(
+            "Market: {} | YES bid: {:?} ask: {:?}",
+            update.market_ticker, update.yes_bid, update.yes_ask
+        );
+    }
+
+    // Cleanup
+    unsubscribe().await;
+    client.shutdown().await?;
+
+    Ok(())
+}
+```
+
+#### Subscribe to Specific Tickers
+
+```rust
+// Subscribe to specific market tickers
+let (mut stream, unsubscribe) = client
+    .prices_subscribe_tickers(vec![
+        "BTCD-25DEC0313-T92749.99".to_string(),
+        "SPX-25DEC0313-T5000".to_string(),
+    ])
+    .await?;
+```
+
+#### Multiple Channel Subscriptions
+
+```rust
+// Subscribe to trades
+let (mut trades, _) = client.trades_subscribe_all().await?;
+
+// Subscribe to orderbook updates
+let (mut orderbook, _) = client.orderbook_subscribe_all().await?;
+
+// Or subscribe to specific tickers
+let (mut trades, _) = client.trades_subscribe_tickers(vec!["TICKER".to_string()]).await?;
+let (mut orderbook, _) = client.orderbook_subscribe_tickers(vec!["TICKER".to_string()]).await?;
 ```
 
 ## API Coverage
@@ -93,7 +168,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 - `search_events` - Search for events by title or ticker
 
+### WebSocket API (requires `websocket` feature)
+
+**Prices Channel**
+- `prices_subscribe_all` - Subscribe to price updates for all markets
+- `prices_subscribe_tickers` - Subscribe to price updates for specific tickers
+
+**Trades Channel**
+- `trades_subscribe_all` - Subscribe to trade updates for all markets
+- `trades_subscribe_tickers` - Subscribe to trade updates for specific tickers
+
+**Orderbook Channel**
+- `orderbook_subscribe_all` - Subscribe to orderbook updates for all markets
+- `orderbook_subscribe_tickers` - Subscribe to orderbook updates for specific tickers
+
 ## Configuration
+
+### REST API
 
 ```rust
 // Use default base URL
@@ -104,6 +195,20 @@ let client = DflowPredictionApiClient::new(
     "https://custom-api.example.com".to_string(),
     "api-key".to_string(),
 );
+```
+
+### WebSocket API
+
+```rust
+use dflow_api_client::prediction::websocket::DflowPredictionWsClient;
+
+// Use default WebSocket URL
+let client = DflowPredictionWsClient::connect().await?;
+
+// Or use custom WebSocket URL
+let client = DflowPredictionWsClient::connect_with_url(
+    "wss://custom-ws.example.com/api/v1/ws"
+).await?;
 ```
 
 ## License

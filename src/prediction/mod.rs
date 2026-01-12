@@ -1,5 +1,8 @@
 pub mod types;
 
+#[cfg(feature = "websocket")]
+pub mod websocket;
+
 use crate::common::{DflowHttpClient, build_query_string, create_http_client};
 
 /// Error type for the DFlow Prediction Market API.

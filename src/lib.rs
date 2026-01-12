@@ -72,6 +72,13 @@ pub use common::{
     ApiErrorResponse, DflowApiError, DflowHttpClient, Result as CommonResult,
     build_query_string, create_http_client,
 };
+// Re-export WebSocket types when the feature is enabled
+#[cfg(feature = "websocket")]
+pub use prediction::websocket::{
+    Channel, DEFAULT_WS_URL, DflowPredictionWsClient, DflowWsError,
+    OrderbookUpdate, PriceUpdate, SubscribeMessage, TradeUpdate, WsMessage,
+    WsResult,
+};
 pub use prediction::{
     DEFAULT_BASE_URL as PREDICTION_DEFAULT_BASE_URL, DflowPredictionApiClient,
     DflowPredictionApiError, Result as PredictionResult,
