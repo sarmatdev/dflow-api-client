@@ -1,11 +1,12 @@
-pub mod error;
 pub mod types;
 
-pub use error::{DflowPredictionApiError, Result};
-use reqwest::{
-    Client,
-    header::{HeaderMap, HeaderValue},
-};
+use crate::common::{DflowHttpClient, build_query_string, create_http_client};
+
+/// Error type for the DFlow Prediction Market API.
+pub type DflowPredictionApiError = crate::common::DflowApiError;
+/// Result type for the DFlow Prediction Market API.
+pub type Result<T> = crate::common::Result<T>;
+use reqwest::Client;
 pub use types::*;
 
 /// Default base URL for the DFlow Prediction Market API
@@ -35,6 +36,16 @@ pub struct DflowPredictionApiClient {
     base_url: String,
 }
 
+impl DflowHttpClient for DflowPredictionApiClient {
+    fn http_client(&self) -> &Client {
+        &self.http_client
+    }
+
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+}
+
 impl DflowPredictionApiClient {
     /// Create a new DFlow Prediction API client.
     ///
@@ -43,19 +54,8 @@ impl DflowPredictionApiClient {
     /// * `base_url` - Base URL for the API (e.g., "https://prediction-markets-api.dflow.net")
     /// * `api_key` - API key for authentication
     pub fn new(base_url: String, api_key: String) -> Self {
-        let mut default_headers = HeaderMap::new();
-        default_headers.insert(
-            "x-api-key",
-            HeaderValue::from_str(&api_key).expect("Invalid API key"),
-        );
-
-        let http_client = Client::builder()
-            .default_headers(default_headers)
-            .build()
-            .expect("Failed to build HTTP client");
-
         Self {
-            http_client,
+            http_client: create_http_client(&api_key),
             base_url,
         }
     }
@@ -67,71 +67,6 @@ impl DflowPredictionApiClient {
     /// * `api_key` - API key for authentication
     pub fn with_default_url(api_key: String) -> Self {
         Self::new(DEFAULT_BASE_URL.to_string(), api_key)
-    }
-
-    /// Build query string from optional parameters
-    fn build_query_string(&self, params: &[(&str, Option<String>)]) -> String {
-        let query_parts: Vec<String> = params
-            .iter()
-            .filter_map(|(key, value)| {
-                value.as_ref().map(|v| format!("{}={}", key, v))
-            })
-            .collect();
-
-        if query_parts.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", query_parts.join("&"))
-        }
-    }
-
-    /// Make a GET request to the API
-    async fn get<T: serde::de::DeserializeOwned>(
-        &self,
-        endpoint: &str,
-    ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, endpoint);
-
-        let response = self.http_client.get(&url).send().await?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(DflowPredictionApiError::from_response(
-                status.as_u16(),
-                &body,
-            ));
-        }
-
-        let body = response.text().await?;
-        serde_json::from_str(&body).map_err(|e| {
-            DflowPredictionApiError::ParseError(format!("{}: {}", e, body))
-        })
-    }
-
-    /// Make a POST request to the API
-    async fn post<T: serde::de::DeserializeOwned, B: serde::Serialize>(
-        &self,
-        endpoint: &str,
-        body: &B,
-    ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, endpoint);
-
-        let response = self.http_client.post(&url).json(body).send().await?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(DflowPredictionApiError::from_response(
-                status.as_u16(),
-                &body,
-            ));
-        }
-
-        let body = response.text().await?;
-        serde_json::from_str(&body).map_err(|e| {
-            DflowPredictionApiError::ParseError(format!("{}: {}", e, body))
-        })
     }
 
     // =========================================================================
@@ -153,7 +88,7 @@ impl DflowPredictionApiClient {
         event_id: &str,
         with_nested_markets: Option<bool>,
     ) -> Result<Event> {
-        let query = self.build_query_string(&[(
+        let query = build_query_string(&[(
             "withNestedMarkets",
             with_nested_markets.map(|v| v.to_string()),
         )]);
@@ -177,7 +112,7 @@ impl DflowPredictionApiClient {
     ) -> Result<EventsResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("limit", params.limit.map(|v| v.to_string())),
             (
                 "withNestedMarkets",
@@ -215,7 +150,7 @@ impl DflowPredictionApiClient {
     ) -> Result<ForecastPercentileHistoryResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("percentiles", params.percentiles),
             ("startTs", params.start_ts.map(|v| v.to_string())),
             ("endTs", params.end_ts.map(|v| v.to_string())),
@@ -249,7 +184,7 @@ impl DflowPredictionApiClient {
     ) -> Result<ForecastPercentileHistoryResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("percentiles", params.percentiles),
             ("startTs", params.start_ts.map(|v| v.to_string())),
             ("endTs", params.end_ts.map(|v| v.to_string())),
@@ -283,7 +218,7 @@ impl DflowPredictionApiClient {
     ) -> Result<CandlesticksResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("startTs", params.start_ts.map(|v| v.to_string())),
             ("endTs", params.end_ts.map(|v| v.to_string())),
             (
@@ -341,7 +276,7 @@ impl DflowPredictionApiClient {
     ) -> Result<MarketsResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("limit", params.limit.map(|v| v.to_string())),
             ("cursor", params.cursor.map(|v| v.to_string())),
             (
@@ -400,7 +335,7 @@ impl DflowPredictionApiClient {
     ) -> Result<OutcomeMintsResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[(
+        let query = build_query_string(&[(
             "minCloseTs",
             params.min_close_ts.map(|v| v.to_string()),
         )]);
@@ -455,7 +390,7 @@ impl DflowPredictionApiClient {
     ) -> Result<CandlesticksResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("startTs", params.start_ts.map(|v| v.to_string())),
             ("endTs", params.end_ts.map(|v| v.to_string())),
             (
@@ -485,7 +420,7 @@ impl DflowPredictionApiClient {
     ) -> Result<CandlesticksResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("startTs", params.start_ts.map(|v| v.to_string())),
             ("endTs", params.end_ts.map(|v| v.to_string())),
             (
@@ -555,7 +490,7 @@ impl DflowPredictionApiClient {
     ) -> Result<TradesResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("limit", params.limit.map(|v| v.to_string())),
             ("cursor", params.cursor),
             ("ticker", params.ticker),
@@ -583,7 +518,7 @@ impl DflowPredictionApiClient {
     ) -> Result<TradesResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("limit", params.limit.map(|v| v.to_string())),
             ("cursor", params.cursor),
             ("minTs", params.min_ts.map(|v| v.to_string())),
@@ -614,8 +549,7 @@ impl DflowPredictionApiClient {
         milestone_ids: &[String],
     ) -> Result<LiveDataResponse> {
         let ids_param = milestone_ids.join(",");
-        let query =
-            self.build_query_string(&[("milestoneIds", Some(ids_param))]);
+        let query = build_query_string(&[("milestoneIds", Some(ids_param))]);
 
         self.get(&format!("/api/v1/live_data{}", query)).await
     }
@@ -675,7 +609,7 @@ impl DflowPredictionApiClient {
     ) -> Result<SeriesResponse> {
         let params = params.unwrap_or_default();
 
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("category", params.category),
             ("tags", params.tags),
             (
@@ -757,7 +691,7 @@ impl DflowPredictionApiClient {
         &self,
         params: SearchParams,
     ) -> Result<SearchResponse> {
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("q", Some(params.q)),
             ("sort", params.sort.map(|v| v.as_str().to_string())),
             ("order", params.order.map(|v| v.as_str().to_string())),

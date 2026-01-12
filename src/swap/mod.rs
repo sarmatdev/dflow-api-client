@@ -1,11 +1,12 @@
-pub mod error;
 pub mod types;
 
-pub use error::{DflowSwapApiError, Result};
-use reqwest::{
-    Client,
-    header::{HeaderMap, HeaderValue},
-};
+use crate::common::{DflowHttpClient, build_query_string, create_http_client};
+
+/// Error type for the DFlow Swap API.
+pub type DflowSwapApiError = crate::common::DflowApiError;
+/// Result type for the DFlow Swap API.
+pub type Result<T> = crate::common::Result<T>;
+use reqwest::Client;
 pub use types::*;
 
 /// Default base URL for the DFlow Swap API
@@ -29,10 +30,12 @@ pub const DEFAULT_BASE_URL: &str = "https://swap-api.dflow.net";
 ///
 ///     // Get a quote for swapping SOL to USDC
 ///     let params = GetQuoteParams {
-///         input_mint: "So11111111111111111111111111111111111111112".to_string(),
-///         output_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+///         input_mint: "So11111111111111111111111111111111111111112"
+///             .to_string(),
+///         output_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+///             .to_string(),
 ///         amount: "1000000000".to_string(), // 1 SOL in lamports
-///         slippage_bps: Some(50), // 0.5% slippage
+///         slippage_bps: Some(50),           // 0.5% slippage
 ///         ..Default::default()
 ///     };
 ///
@@ -46,6 +49,16 @@ pub struct DflowSwapApiClient {
     base_url: String,
 }
 
+impl DflowHttpClient for DflowSwapApiClient {
+    fn http_client(&self) -> &Client {
+        &self.http_client
+    }
+
+    fn base_url(&self) -> &str {
+        &self.base_url
+    }
+}
+
 impl DflowSwapApiClient {
     /// Create a new DFlow Swap API client.
     ///
@@ -54,19 +67,8 @@ impl DflowSwapApiClient {
     /// * `base_url` - Base URL for the API (e.g., "https://swap-api.dflow.net")
     /// * `api_key` - API key for authentication
     pub fn new(base_url: String, api_key: String) -> Self {
-        let mut default_headers = HeaderMap::new();
-        default_headers.insert(
-            "x-api-key",
-            HeaderValue::from_str(&api_key).expect("Invalid API key"),
-        );
-
-        let http_client = Client::builder()
-            .default_headers(default_headers)
-            .build()
-            .expect("Failed to build HTTP client");
-
         Self {
-            http_client,
+            http_client: create_http_client(&api_key),
             base_url,
         }
     }
@@ -78,71 +80,6 @@ impl DflowSwapApiClient {
     /// * `api_key` - API key for authentication
     pub fn with_default_url(api_key: String) -> Self {
         Self::new(DEFAULT_BASE_URL.to_string(), api_key)
-    }
-
-    /// Build query string from optional parameters
-    fn build_query_string(&self, params: &[(&str, Option<String>)]) -> String {
-        let query_parts: Vec<String> = params
-            .iter()
-            .filter_map(|(key, value)| {
-                value.as_ref().map(|v| format!("{}={}", key, v))
-            })
-            .collect();
-
-        if query_parts.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", query_parts.join("&"))
-        }
-    }
-
-    /// Make a GET request to the API
-    async fn get<T: serde::de::DeserializeOwned>(
-        &self,
-        endpoint: &str,
-    ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, endpoint);
-
-        let response = self.http_client.get(&url).send().await?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(DflowSwapApiError::from_response(
-                status.as_u16(),
-                &body,
-            ));
-        }
-
-        let body = response.text().await?;
-        serde_json::from_str(&body).map_err(|e| {
-            DflowSwapApiError::ParseError(format!("{}: {}", e, body))
-        })
-    }
-
-    /// Make a POST request to the API
-    async fn post<T: serde::de::DeserializeOwned, B: serde::Serialize>(
-        &self,
-        endpoint: &str,
-        body: &B,
-    ) -> Result<T> {
-        let url = format!("{}{}", self.base_url, endpoint);
-
-        let response = self.http_client.post(&url).json(body).send().await?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
-            return Err(DflowSwapApiError::from_response(
-                status.as_u16(),
-                &body,
-            ));
-        }
-
-        let body = response.text().await?;
-        serde_json::from_str(&body).map_err(|e| {
-            DflowSwapApiError::ParseError(format!("{}: {}", e, body))
-        })
     }
 
     // =========================================================================
@@ -185,7 +122,7 @@ impl DflowSwapApiClient {
         &self,
         params: GetQuoteParams,
     ) -> Result<QuoteResponse> {
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("inputMint", Some(params.input_mint)),
             ("outputMint", Some(params.output_mint)),
             ("amount", Some(params.amount)),
@@ -213,7 +150,9 @@ impl DflowSwapApiClient {
     /// # Example
     ///
     /// ```no_run
-    /// use dflow_api_client::swap::{DflowSwapApiClient, GetQuoteParams, SwapRequest};
+    /// use dflow_api_client::swap::{
+    ///     DflowSwapApiClient, GetQuoteParams, SwapRequest,
+    /// };
     ///
     /// # async fn example() {
     /// let client = DflowSwapApiClient::with_default_url("api-key".to_string());
@@ -287,7 +226,7 @@ impl DflowSwapApiClient {
         &self,
         params: GetIntentParams,
     ) -> Result<IntentResponse> {
-        let query = self.build_query_string(&[
+        let query = build_query_string(&[
             ("inputMint", Some(params.input_mint)),
             ("outputMint", Some(params.output_mint)),
             ("amount", Some(params.amount)),
@@ -314,7 +253,9 @@ impl DflowSwapApiClient {
     /// # Example
     ///
     /// ```no_run
-    /// use dflow_api_client::swap::{DflowSwapApiClient, GetIntentParams, SubmitIntentRequest};
+    /// use dflow_api_client::swap::{
+    ///     DflowSwapApiClient, GetIntentParams, SubmitIntentRequest,
+    /// };
     ///
     /// # async fn example() {
     /// let client = DflowSwapApiClient::with_default_url("api-key".to_string());

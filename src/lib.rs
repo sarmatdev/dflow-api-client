@@ -44,16 +44,17 @@
 //! #[tokio::main]
 //! async fn main() {
 //!     // Create a swap client with your API key
-//!     let client = DflowSwapApiClient::with_default_url(
-//!         "your-api-key".to_string(),
-//!     );
+//!     let client =
+//!         DflowSwapApiClient::with_default_url("your-api-key".to_string());
 //!
 //!     // Get a quote for swapping SOL to USDC
 //!     let params = GetQuoteParams {
-//!         input_mint: "So11111111111111111111111111111111111111112".to_string(),
-//!         output_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(),
+//!         input_mint: "So11111111111111111111111111111111111111112"
+//!             .to_string(),
+//!         output_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+//!             .to_string(),
 //!         amount: "1000000000".to_string(), // 1 SOL
-//!         slippage_bps: Some(50), // 0.5%
+//!         slippage_bps: Some(50),           // 0.5%
 //!         ..Default::default()
 //!     };
 //!
@@ -62,10 +63,15 @@
 //! }
 //! ```
 
+pub mod common;
 pub mod prediction;
 pub mod swap;
 
 // Re-export common types at the crate level for convenience
+pub use common::{
+    ApiErrorResponse, DflowApiError, DflowHttpClient, Result as CommonResult,
+    build_query_string, create_http_client,
+};
 pub use prediction::{
     DEFAULT_BASE_URL as PREDICTION_DEFAULT_BASE_URL, DflowPredictionApiClient,
     DflowPredictionApiError, Result as PredictionResult,
