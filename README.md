@@ -1,6 +1,6 @@
 # DFlow API Client
 
-A Rust client library for interacting with the [DFlow Prediction Market Metadata API](https://pond.dflow.net/prediction-market-metadata-api-reference/introduction).
+A Rust client library for interacting with the [DFlow API](https://pond.dflow.net/introduction).
 
 ## Installation
 
