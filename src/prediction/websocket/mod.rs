@@ -53,6 +53,7 @@ use tokio_tungstenite::{
     MaybeTlsStream, WebSocketStream, connect_async,
     tungstenite::{
         Message,
+        http::Request,
         protocol::frame::{CloseFrame, coding::CloseCode},
     },
 };
@@ -164,7 +165,61 @@ impl DflowPredictionWsClient {
     ///
     /// A connected `DflowPredictionWsClient` ready for subscriptions.
     pub async fn connect_with_url(url: &str) -> WsResult<Self> {
-        let (ws, _response) = connect_async(url).await?;
+        Self::connect_with_url_and_headers(url, &[]).await
+    }
+
+    /// Connect to the DFlow WebSocket API using an API key for authentication.
+    ///
+    /// # Arguments
+    ///
+    /// * `api_key` - The API key for authentication
+    ///
+    /// # Returns
+    ///
+    /// A connected `DflowPredictionWsClient` ready for subscriptions.
+    pub async fn connect_with_api_key(api_key: &str) -> WsResult<Self> {
+        Self::connect_with_url_and_headers(
+            DEFAULT_WS_URL,
+            &[("Authorization", &format!("Bearer {}", api_key))],
+        )
+        .await
+    }
+
+    /// Connect to the DFlow WebSocket API using a custom URL and headers.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The WebSocket URL to connect to
+    /// * `headers` - A slice of header key-value pairs to include in the connection request
+    ///
+    /// # Returns
+    ///
+    /// A connected `DflowPredictionWsClient` ready for subscriptions.
+    pub async fn connect_with_url_and_headers(
+        url: &str,
+        headers: &[(&str, &str)],
+    ) -> WsResult<Self> {
+        let mut request = Request::builder()
+            .uri(url)
+            .header("Host", url_host(url).unwrap_or_default())
+            .header("Connection", "Upgrade")
+            .header("Upgrade", "websocket")
+            .header("Sec-WebSocket-Version", "13")
+            .header(
+                "Sec-WebSocket-Key",
+                tokio_tungstenite::tungstenite::handshake::client::generate_key(
+                ),
+            );
+
+        for (key, value) in headers {
+            request = request.header(*key, *value);
+        }
+
+        let request = request
+            .body(())
+            .map_err(|e| DflowWsError::ConnectionClosed(e.to_string()))?;
+
+        let (ws, _response) = connect_async(request).await?;
 
         let (subscribe_sender, subscribe_receiver) = mpsc::unbounded_channel();
         let (shutdown_sender, shutdown_receiver) = oneshot::channel();
@@ -503,4 +558,15 @@ impl Drop for DflowPredictionWsClient {
             let _ = sender.send(());
         }
     }
+}
+
+/// Extract the host from a URL string.
+fn url_host(url: &str) -> Option<&str> {
+    let without_scheme = url
+        .strip_prefix("wss://")
+        .or_else(|| url.strip_prefix("ws://"))
+        .or_else(|| url.strip_prefix("https://"))
+        .or_else(|| url.strip_prefix("http://"))?;
+
+    without_scheme.split('/').next()
 }
